@@ -12,7 +12,7 @@ We currently support two models to generate faceswaps - SimSwap and Sberswap. Th
 $ git clone https://github.com/neuralchen/SimSwap
 $ rm SimSwap/insightface_func && mv SimSwap/* ./
 $ git clone https://github.com/ai-forever/sber-swap
-$ rm SimSwap/insightface_func && mv sber-swap/* ./
+$ rm sber-swap/insightface_func && mv sber-swap/* ./
 ```
 
 
