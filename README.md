@@ -6,13 +6,13 @@ This package contains the codebase for the paper titled "A Dataless FaceSwap Det
 
 # Setup 
 
-We currently support two models to generate faceswaps - SimSwap and Sberswap. These need to cloned and extracted in this repository for it to work. You can do so using the commands below. However, we write our own face cropper and thus the insightace_func needs to be m
+We currently support two models to generate faceswaps - SimSwap and Sberswap. These need to cloned and extracted in this repository for it to work. You can do so using the commands below. However, we write our own face cropper and thus the insightace_func needs to be removed from the directory. 
 
 ```
 $ git clone https://github.com/neuralchen/SimSwap
-$ mv SimSwap/* ./
+$ rm SimSwap/insightface_func && mv SimSwap/* ./
 $ git clone https://github.com/ai-forever/sber-swap
-$ mv sber-swap/* ./
+$ rm SimSwap/insightface_func && mv sber-swap/* ./
 ```
 
 
