@@ -9,7 +9,10 @@ This package contains the codebase for the paper titled "A Dataless FaceSwap Det
 We currently support two models to generate faceswaps - SimSwap and Sberswap. These need to cloned and extracted in this repository for it to work. You can do so using the commands below. 
 
 ```
-
+$ git clone https://github.com/neuralchen/SimSwap
+$ mv SimSwap/* ../
+$ git clone https://github.com/ai-forever/sber-swap
+$ mv sber-swap/* ../
 ```
 
 
@@ -34,7 +37,7 @@ $ python3 main.py --mode train_real_gpu --swap_model {simswap or sberswap} --bat
 You can test the models using your own trained models or use the pretrained models provided by us. For either of them you test the models on the FFHQ dataset, Celeba-HQ, ADFES or any of the subsets of the FaceForensics++ dataset. You need to download and extract the respective dataset in this working repository. 
 
 ```
-
+$ python3 main.py --mode test --test_dataset {ffhq, celeba-hq, adfes, ff-neuraltextures, ff-face2face, ff-faceswap, ff-faceshifter or ff-google} --full_test_model_path /path/to/the/test/model
 ```
 
 
