@@ -15,9 +15,6 @@ import os
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-# def lcm(a, b): return abs(a * b) / fractions.gcd(a, b) if a and b else 0
-
-
 def _totensor(array):
     tensor = torch.from_numpy(array)
     img = tensor.transpose(0, 1).transpose(0, 2).contiguous()

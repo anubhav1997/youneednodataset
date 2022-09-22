@@ -150,12 +150,12 @@ if args.swap_model == 'simswap':
     spNorm, model_simswap, app, net = simswap_init(mode)
 
 if args.dataset_name == 'ffhq':
-    path_dataset = '/scratch/aj3281/ffhq-dataset/test/'
+    path_dataset = './ffhq-dataset/test/'
     # path = '../ffhq_temp/'
     path_list = glob.glob(os.path.join(path_dataset + "*/*.png"))
 
 if args.dataset_name == 'celeba-hq':
-    path_dataset = '/scratch/aj3281/celebA-HQ-dataset-download/data1024x1024/test/'
+    path_dataset = './celebA-HQ-dataset-download/data1024x1024/test/'
 
     path_list = glob.glob(os.path.join(path_dataset, "*.jpg"))
 
