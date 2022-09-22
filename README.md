@@ -10,9 +10,9 @@ We currently support two models to generate faceswaps - SimSwap and Sberswap. Th
 
 ```
 $ git clone https://github.com/neuralchen/SimSwap
-$ mv SimSwap/* ../
+$ mv SimSwap/* ./
 $ git clone https://github.com/ai-forever/sber-swap
-$ mv sber-swap/* ../
+$ mv sber-swap/* ./
 ```
 
 
