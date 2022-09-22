@@ -6,7 +6,7 @@ This package contains the codebase for the paper titled "A Dataless FaceSwap Det
 
 # Setup 
 
-We currently support two models to generate faceswaps - SimSwap and Sberswap. These need to cloned and extracted in this repository for it to work. You can do so using the commands below. 
+We currently support two models to generate faceswaps - SimSwap and Sberswap. These need to cloned and extracted in this repository for it to work. You can do so using the commands below. However, we write our own face cropper and thus the insightace_func needs to be m
 
 ```
 $ git clone https://github.com/neuralchen/SimSwap
