@@ -9,26 +9,11 @@ import glob
 import argparse
 import os
 from torch.utils.data import Dataset, DataLoader
+from deepface import DeepFace
 from simswap import simswap_init, simswap
 from sberswap import sberswap_init, sberswap
 from stylegan3 import generate_images, generate_images_batch, parse_range, make_transform, parse_vec2
-# !git clone https://github.com/neuralchen/SimSwap
-# !cd SimSwap && git pull
-
-
-# !pip install insightface==0.2.1 onnxruntime moviepy
-# !pip install googledrivedownloader
-# !pip install imageio==2.4.1
-
-
-# !wget --no-check-certificate "https://sh23tw.dm.files.1drv.com/y4mmGiIkNVigkSwOKDcV3nwMJulRGhbtHdkheehR5TArc52UjudUYNXAEvKCii2O5LAmzGCGK6IfleocxuDeoKxDZkNzDRSt4ZUlEt8GlSOpCXAFEkBwaZimtWGDRbpIGpb_pz9Nq5jATBQpezBS6G_UtspWTkgrXHHxhviV2nWy8APPx134zOZrUIbkSF6xnsqzs3uZ_SEX_m9Rey0ykpx9w" -O antelope.zip
-# !unzip ./antelope.zip -d ./insightface_func/models/
-
-# !wget -P ./arcface_model https://github.com/neuralchen/SimSwap/releases/download/1.0/arcface_checkpoint.tar
-# !wget https://github.com/neuralchen/SimSwap/releases/download/1.0/checkpoints.zip
-# !unzip ./checkpoints.zip  -d ./checkpoints
-# !wget -P ./parsing_model/checkpoint https://github.com/neuralchen/SimSwap/releases/download/1.0/79999_iter.pth
-
+from balanced_set import balanced_random
 
 parser = argparse.ArgumentParser()
 
@@ -37,13 +22,13 @@ parser.add_argument('--crop_size', default=224, type=int, help="Don't change thi
 parser.add_argument('--swap_model', default='simswap', type=str, required=True)
 parser.add_argument('--mode', default='test', type=str, required=True)
 # parser.add_argument('--test_model_path', default='', type=str)
-parser.add_argument('--test_dataset', default='celeba-hq', type=str, help='[celeba-hq, ffhq, adfes, IJCB2017, pasc]')
+parser.add_argument('--test_dataset', default='celeba-hq', type=str, help='[celeba-hq, ffhq, adfes, IJCB2017, pasc, ff-, ff-neural_textures]')
 parser.add_argument('--finetune_dataset', '--train_real_dataset', default='ffhq', type=str)
 parser.add_argument('--test_swap_model', default='sberswap', type=str)
 parser.add_argument('--full_test_model_path', default=None, type=str)
 parser.add_argument('--num_workers', default=5, type=int)
 parser.add_argument('--save_model_suffix', default="", type=str)
-parser.add_argument('--n_steps', default=None, type=int) #2000
+parser.add_argument('--n_steps', default=2000, type=int) #2000
 parser.add_argument('--checkpoint_path', default=None, type=str)
 
 
@@ -69,8 +54,6 @@ tf.config.experimental.set_visible_devices([], 'GPU')
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 network = 'https://api.ngc.nvidia.com/v2/models/nvidia/research/stylegan3/versions/1/files/stylegan3-t-ffhq-1024x1024' \
           '.pkl '
-
-from deepface import DeepFace
 
 races_count = {}
 races_p = {}
@@ -213,8 +196,7 @@ def test2(model, X, y):
         count = 0
         for i in range(len(X)):
             y_pred_temp = model(X[i].unsqueeze(0).to(device))
-            # print(y_pred_temp.shape)
-            # print(y[i].shape)
+
             loss_temp = criterion(y_pred_temp, y[i].unsqueeze(0).long().to(device)).item()
             loss += loss_temp
             y_pred.append(torch.argmax(y_pred_temp, 1).cpu().numpy()[0])
@@ -226,9 +208,7 @@ def test2(model, X, y):
         loss_cal = loss / float(len(y))
 
     scores = np.array(scores)
-    # print(scores.shape)
     scores = np.squeeze(scores, axis=1)
-    # print(y_pred)
 
     return acc, loss_cal, len(y), scores, count, loss
 
@@ -245,17 +225,12 @@ def test_batch(model, X, y):
         scores = []
         loss = 0
         count = 0
-        # for i in range(len(X)):
+
         y_pred_temp = model(X.to(device))
-        # print(y_pred_temp.shape)
-        # print(y[i].shape)
+
         loss_temp = criterion(y_pred_temp, y.long().to(device)).item()
         loss += loss_temp
         y_pred.append(y_pred_temp)
-        # print(torch.argmax(y_pred_temp, 1).cpu().numpy())
-        # print(y)
-        # print(sum(compareList(torch.argmax(y_pred_temp, 1).cpu().numpy(), y)))
-        # z = input()
 
         count = sum(compareList(torch.argmax(y_pred_temp, 1).cpu().numpy(), y))
         analyze_biases(X.detach().cpu().permute(0, 2, 3, 1).numpy(), torch.argmax(y_pred_temp, 1).cpu().numpy(), y.cpu().numpy())
@@ -273,7 +248,26 @@ def test_batch(model, X, y):
 
     return acc, loss_cal, len(y), scores, count, loss
 
-def test(path_list, model):
+def extract_frames_from_video(video_path, n_frames=10):
+    import cv2
+    vidcap = cv2.VideoCapture(video_path)
+    success, image = vidcap.read()
+    count = 0
+    frames = []
+    while success:
+
+        image = cv2.resize(image, (1024, 1024))
+        frames.append(image)
+
+        count += 1
+        if count >= 10:
+            break
+        success, image = vidcap.read()
+
+    return frames
+
+
+def test(path_list, model, type='video'):
     i = 0
     label_real = 1
     label_swap = 0
@@ -282,57 +276,80 @@ def test(path_list, model):
     count_total =0
     scores_total = []
     y_test_total = []
-    while i < len(path_list):
-        images = []
-        swapped_images = []
 
-        for j in range(i, min(i+BATCH_SIZE, len(path_list))):
+    if type == 'video':
 
-            # y = []
-            image1 = cv2.imread(path_list[j])
-            image1 = cv2.resize(image1, (1024, 1024))
-            # image2 = cv2.imread(path_list[j + 1])
-            images.append(image1)
-            # images.append(image2)
+        while i < len(path_list):
 
-        for j in range(len(images)-1):
-            if swap_model == 'sberswap':
-                swapped = sberswap(images[j], images[j+1], model_sberswap, handler, netArc, G_sberswap, app_sberswap, mode)
-            elif swap_model == 'simswap':
-                swapped = simswap(images[j], images[j+1], spNorm, model_simswap, app, net, mode)
+            images = []
+            swapped_images = []
 
-            if swapped is not None:
-                # count += 1
-                swapped_images.append(swapped)
+            X_test = extract_frames_from_video(path_list[i], BATCH_SIZE)
+            y_test = torch.zeros(len(X_test))
 
-        swapped_images = np.array(swapped_images)
-        images = np.array(images)
-        # print("Images", images.shape)
-        # print("Swapped", swapped_images.shape)
-        X_test = np.append(swapped_images, images, axis=0)
+            X_test = torch.Tensor(X_test).permute(0, 3, 1, 2)
+            y_test = torch.Tensor(y_test)
 
-        y_test = np.append(np.zeros(len(swapped_images)), np.ones(len(images)))
+            _, _, count, scores, acc, loss = test_batch(model, X_test, y_test)
+            acc_total += acc
+            count_total += count
+            loss_total += loss
 
-        X_test = torch.Tensor(X_test).permute(0, 3, 1, 2)
-        y_test = torch.Tensor(y_test)
+            scores_total = np.append(scores_total, scores[:, 1])
+            y_test_total = np.append(y_test_total, y_test)
 
-        _, _, count, scores, acc, loss = test_batch(model, X_test, y_test)
-        acc_total += acc
-        count_total += count
-        loss_total += loss
+            i+= 1
 
-        scores_total = np.append(scores_total, scores[:,1])
-        y_test_total = np.append(y_test_total, y_test)
 
-        i += BATCH_SIZE
+    else:
 
+        while i < len(path_list):
+            images = []
+            swapped_images = []
+
+            for j in range(i, min(i+BATCH_SIZE, len(path_list))):
+
+                image1 = cv2.imread(path_list[j])
+                image1 = cv2.resize(image1, (1024, 1024))
+                # image2 = cv2.imread(path_list[j + 1])
+                images.append(image1)
+
+
+            for j in range(len(images)-1):
+                if swap_model == 'sberswap':
+                    swapped = sberswap(images[j], images[j+1], model_sberswap, handler, netArc, G_sberswap, app_sberswap, mode)
+                elif swap_model == 'simswap':
+                    swapped = simswap(images[j], images[j+1], spNorm, model_simswap, app, net, mode)
+
+                if swapped is not None:
+                    # count += 1
+                    swapped_images.append(swapped)
+
+            swapped_images = np.array(swapped_images)
+            images = np.array(images)
+            # print("Images", images.shape)
+            # print("Swapped", swapped_images.shape)
+            X_test = np.append(swapped_images, images, axis=0)
+
+            y_test = np.append(np.zeros(len(swapped_images)), np.ones(len(images)))
+
+            X_test = torch.Tensor(X_test).permute(0, 3, 1, 2)
+            y_test = torch.Tensor(y_test)
+
+            _, _, count, scores, acc, loss = test_batch(model, X_test, y_test)
+            acc_total += acc
+            count_total += count
+            loss_total += loss
+
+            scores_total = np.append(scores_total, scores[:,1])
+            y_test_total = np.append(y_test_total, y_test)
+
+            i += BATCH_SIZE
 
     print("Total Count")
     print(races_count)
     print(gender_count)
     print(age_count)
-
-
 
     print("True Positives")
     print(races_TP)
@@ -349,12 +366,10 @@ def test(path_list, model):
     print(gender_FP)
     print(age_FP)
 
-
     print("False Negatives")
     print(races_FN)
     print(gender_FN)
     print(age_FN)
-
 
     print("Count Positives")
     print(races_p)
@@ -365,7 +380,6 @@ def test(path_list, model):
     print(races_n)
     print(gender_n)
     print(age_n)
-
 
     for key in races_count.keys():
         races_TP[key] = (races_TP[key] + races_TN[key])/float(races_count[key])
@@ -475,7 +489,6 @@ if mode == 'bias_eval':
 
         if age in age_count.keys():
             age_count[age] += 1
-            # age_TP[age] += int(pred.numpy())
         else:
             age_count[age] = 1
 
@@ -483,10 +496,7 @@ if mode == 'bias_eval':
     print(gender_count)
     print(races_count)
 
-
-
-
-if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
+if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu' or mode == 'balanced':
 
     train_error = 1000.0
     train_acc_count = 0
@@ -495,6 +505,8 @@ if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
     count = 0
     batches = 1
     c = 0
+    seed = 0
+    # balanced = True
     if mode == 'train_real_gpu':
         if finetune_dataset == 'ffhq':
             ffhq_path = '/scratch/aj3281/ffhq-dataset/train/'
@@ -509,13 +521,17 @@ if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
         # import random
         # random.shuffle(path_list)
 
-    while (train_error > 0.00001 and index < float('inf')) or epoch >= 500:
+    while (train_error > 1e-10 and index < float('inf')) or epoch >= 500:
 
         if mode == 'train_real_gpu':
 
             images = []
             for j in range(batches*BATCH_SIZE//2, min((batches+1)*BATCH_SIZE//2, len(path_list))):
                 images.append(cv2.imread(path_list[j]))
+        if mode == 'balanced':
+
+            images, seed_out = balanced_random(seed = seed, batch_size=BATCH_SIZE//2)
+            seed = seed_out
         else:
             # seeds = parse_range(str(index) + '-' + str(index + BATCH_SIZE-1)) #
             index = index + 1  # + BATCH_SIZE
@@ -524,13 +540,6 @@ if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
                                            outdir='./',
                                            translate=parse_vec2('0,0'), rotate=0, BATCH_SIZE=BATCH_SIZE,
                                            class_idx=None) # pylint: disable=no-value-for-parameter
-
-
-            # c += 1
-            # cv2.imwrite(str(batches) + '_' + str(epoch) + '_' + str(c) + '_real.png', images[0])
-
-            # images = images[..., ::-1]
-
 
         swapped_images = []
         i = 0
@@ -547,41 +556,21 @@ if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
             if swapped is not None:
                 # swapped = swapped[..., ::-1]
                 swapped_images.append(swapped)
-                # plt.close()
-                # plt.imshow(swapped)
-                # plt.show()
                 c += 1
-                # print("got swapped")
-
-
-                #
-                # cv2.imwrite(str(batches) + '_' + str(epoch) + '_' + str(c) + '_' + swap_model + '_swapped.png', swapped)
-                # cv2.imwrite(str(batches) + '_' + str(epoch) + '_' + str(c) + '_' + swap_model + '_real1.png', images[i])
-                # cv2.imwrite(str(batches) + '_' + str(epoch) + '_' + str(c) + '_' + swap_model + '_real2.png', images[i+1])
-
-                # plt.imshow('abc', swapped)
-                # plt.show()
             else:
                 temp+=1
-                # print("No face was detected in the image thus skipping over this image. ")
 
             i += 1
         swapped_images = np.array(swapped_images)
-        print("No of faces not detected: ", temp)
+        # print("No of faces not detected: ", temp)
 
         if len(swapped_images) == 0:
             print("NO FACES AT ALL WERE DETECTED")
             print(len(images))
             print(epoch, batches)
             continue
-        # print("hereeee")
-        # exit(0)
-        #
-        # x = input()
 
         images = np.array(images)
-
-
         X = np.append(swapped_images, images, axis=0)
         y = np.append(np.zeros(len(swapped_images)), np.ones(len(images)))
 
@@ -650,7 +639,7 @@ if mode == 'train' or mode == 'train_test' or mode == 'train_real_gpu':
                                                                                                                  train_error,
                                                                                                                  test_acc,
                                                                                                                  test_error))
-            torch.save(model, 'models_' + swap_model + '/' + str(epoch) + '_' + args.save_model_suffix + '.pth')
+            torch.save(model, 'models_' + swap_model + '/' + str(epoch) + '_' + mode + '_' + args.save_model_suffix + '.pth')
             del X_test, y_test
 
             count = 0
@@ -721,6 +710,99 @@ elif mode == 'finetune' or mode == 'train_real':
         torch.save(model, 'models/' + mode + '_' + str(swap_model) + '_' + str(finetune_dataset) + '_' + str(
             epoch) + '_' + args.save_model_suffix + '.pth')
 
+elif mode == 'test' or mode == 'train_test':
+
+    if args.full_test_model_path is not None:
+        filename = args.full_test_model_path
+    elif test_swap_model == 'simswap':
+
+        epoch = 26
+        filename = 'models_' + test_swap_model + '/' + str(epoch) + '.pth'
+    else:
+        epoch = 48
+        filename = 'models_' + test_swap_model + '/' + str(epoch) + '.pth'
+
+    model = torch.load(filename, map_location=device).to(device)
+    criterion = nn.CrossEntropyLoss()
+    test_dataset = args.test_dataset  # 'celeba-hq'
+    type = ''
+
+    if test_dataset == 'ffhq':
+
+        ffhq_path = './ffhq-dataset/test/'
+        path_list = glob.glob(os.path.join(ffhq_path + "*/*.png"))
+
+    elif test_dataset == 'lfw':
+        from sklearn.datasets import fetch_lfw_pairs
+        from sklearn.datasets import fetch_lfw_people
+        import sklearn
+
+        # sklearn.datasets.get_data_home('/scratch/aj3281/')
+
+        lfw_people = fetch_lfw_people(data_home='/scratch/aj3281/', color=True)
+        print(lfw_people.images.shape)
+        lfw_shape = lfw_people.images.shape
+        # resize_factor = min(1024/float(lfw_shape[0]), 1024/float(lfw_shape[1]))
+        # lfw_people
+        images = []
+        for img in lfw_people.images:
+            I = cv2.resize(img, (1024, 1024)) * 255
+            I = I.astype(np.uint8)
+            # print(np.max(I))
+            images.append(I)
+
+    elif test_dataset == 'celeba-hq':
+
+        # Images (9999, 1024, 1024, 3)
+        # Swapped (9289, 1024, 1024, 3)
+        # X_test (19288, 1024, 1024, 3)
+
+        path = './celebA-HQ-dataset-download/data1024x1024/test/'
+        path_list = glob.glob(os.path.join(path, "*.jpg"))
+
+
+    elif test_dataset == 'adfes':  # Shape: (576, 720, 3)
+
+        adfes_path1 = '/scratch/aj3281/Still_pictures*'
+        path_list = glob.glob(os.path.join(adfes_path1 + "/*/*.jpg")) + glob.glob(os.path.join(adfes_path1 + "/*/*/*.jpg"))
+
+    elif test_dataset == 'ff-neuraltextures':
+        print('here')
+
+        path = './ff_dataset/manipulated_sequences/NeuralTextures/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+
+    elif test_dataset == 'ff-faceshifter':
+        path = './ff_dataset/manipulated_sequences/FaceShifter/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    elif test_dataset == 'ff-deepfakes':
+        path = './ff_dataset/manipulated_sequences/Deepfakes/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    elif test_dataset == 'ff-face2face':
+        path = './ff_dataset/manipulated_sequences/Face2Face/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    elif test_dataset == 'ff-faceswap':
+        path = './ff_dataset/manipulated_sequences/FaceSwap/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    elif test_dataset == 'ff-google':
+        path = './ff_dataset/manipulated_sequences/DeepFakeDetection/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    elif test_dataset == 'ff-youtube':
+        path = './ff_dataset/original_sequences/youtube/c23/videos'
+        path_list = glob.glob(path + "/*.mp4")
+        type = 'video'
+    else:
+        print('This dataset has not been added - please select one of the available ones.')
+
+    print(path_list)
+    test(path_list, model, type)
+
 elif mode == 'test2' or mode == 'train_test2':
 
     if args.full_test_model_path is not None:
@@ -748,6 +830,7 @@ elif mode == 'test2' or mode == 'train_test2':
         from sklearn.datasets import fetch_lfw_pairs
         from sklearn.datasets import fetch_lfw_people
         import sklearn
+
         # sklearn.datasets.get_data_home('/scratch/aj3281/')
 
         lfw_people = fetch_lfw_people(data_home='/scratch/aj3281/', color=True)
@@ -820,7 +903,8 @@ elif mode == 'test2' or mode == 'train_test2':
     i = 0
     while i < len(images) - 1:
         if swap_model == 'sberswap':
-            swapped = sberswap(images[i], images[i + 1], model_sberswap, handler, netArc, G_sberswap, app_sberswap, mode)
+            swapped = sberswap(images[i], images[i + 1], model_sberswap, handler, netArc, G_sberswap, app_sberswap,
+                               mode)
         elif swap_model == 'simswap':
             swapped = simswap(images[i], images[i + 1], spNorm, model_simswap, app, net, mode)
 
@@ -851,72 +935,10 @@ elif mode == 'test2' or mode == 'train_test2':
     print("Test Accuracy: %.4f, Test Error: %.6f" % (test_acc, test_error))
 
     np.savetxt('scores_' + str(test_dataset) + '_' + swap_model + '_' + test_swap_model + '.csv',
-               np.concatenate((np.expand_dims(y_test.cpu().numpy(),1), scores[:,1]), axis=1), delimiter=',')
+               np.concatenate((np.expand_dims(y_test.cpu().numpy(), 1), scores[:, 1]), axis=1), delimiter=',')
 
 
-
-
-
-elif mode == 'test' or mode == 'train_test':
-
-    if args.full_test_model_path is not None:
-        filename = args.full_test_model_path
-    elif test_swap_model == 'simswap':
-
-        epoch = 26
-        filename = 'models_' + test_swap_model + '/' + str(epoch) + '.pth'
-    else:
-        epoch = 48
-        filename = 'models_' + test_swap_model + '/' + str(epoch) + '.pth'
-
-    model = torch.load(filename, map_location=device).to(device)
-    criterion = nn.CrossEntropyLoss()
-    test_dataset = args.test_dataset  # 'celeba-hq'
-
-    if test_dataset == 'ffhq':
-
-        ffhq_path = '/scratch/aj3281/ffhq-dataset/test/'
-        path_list = glob.glob(os.path.join(ffhq_path + "*/*.png"))
-
-    elif test_dataset == 'lfw':
-        from sklearn.datasets import fetch_lfw_pairs
-        from sklearn.datasets import fetch_lfw_people
-        import sklearn
-
-        # sklearn.datasets.get_data_home('/scratch/aj3281/')
-
-        lfw_people = fetch_lfw_people(data_home='/scratch/aj3281/', color=True)
-        print(lfw_people.images.shape)
-        lfw_shape = lfw_people.images.shape
-        # resize_factor = min(1024/float(lfw_shape[0]), 1024/float(lfw_shape[1]))
-        # lfw_people
-        images = []
-        for img in lfw_people.images:
-            I = cv2.resize(img, (1024, 1024)) * 255
-            I = I.astype(np.uint8)
-            # print(np.max(I))
-            images.append(I)
-
-    elif test_dataset == 'celeba-hq':
-
-        # Images (9999, 1024, 1024, 3)
-        # Swapped (9289, 1024, 1024, 3)
-        # X_test (19288, 1024, 1024, 3)
-
-        path = '/scratch/aj3281/celebA-HQ-dataset-download/data1024x1024/test/'
-        path_list = glob.glob(os.path.join(path, "*.jpg"))
-
-
-    elif test_dataset == 'adfes':  # Shape: (576, 720, 3)
-
-        adfes_path1 = '/scratch/aj3281/Still_pictures*'
-        path_list = glob.glob(os.path.join(adfes_path1 + "/*/*.jpg")) + glob.glob(os.path.join(adfes_path1 + "/*/*/*.jpg"))
-
-    test(path_list, model)
-
-
-
-    # elif test_dataset == 'IJCB2017':  # (2000, 3008, 3)
+# elif test_dataset == 'IJCB2017':  # (2000, 3008, 3)
     #     path = '/vast/aj3281/FOCS/*'
     #     images = []
     #     for file in glob.glob(os.path.join(path + "/*.jpg")):  # + glob.glob(os.path.join(adfes_path2 + "*/*.png")):
@@ -1016,3 +1038,21 @@ elif mode == 'test' or mode == 'train_test':
     #
     # dataset = TensorDataset(X, y)  # create your datset
     # dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
+
+
+# !git clone https://github.com/neuralchen/SimSwap
+# !cd SimSwap && git pull
+
+
+# !pip install insightface==0.2.1 onnxruntime moviepy
+# !pip install googledrivedownloader
+# !pip install imageio==2.4.1
+
+
+# !wget --no-check-certificate "https://sh23tw.dm.files.1drv.com/y4mmGiIkNVigkSwOKDcV3nwMJulRGhbtHdkheehR5TArc52UjudUYNXAEvKCii2O5LAmzGCGK6IfleocxuDeoKxDZkNzDRSt4ZUlEt8GlSOpCXAFEkBwaZimtWGDRbpIGpb_pz9Nq5jATBQpezBS6G_UtspWTkgrXHHxhviV2nWy8APPx134zOZrUIbkSF6xnsqzs3uZ_SEX_m9Rey0ykpx9w" -O antelope.zip
+# !unzip ./antelope.zip -d ./insightface_func/models/
+
+# !wget -P ./arcface_model https://github.com/neuralchen/SimSwap/releases/download/1.0/arcface_checkpoint.tar
+# !wget https://github.com/neuralchen/SimSwap/releases/download/1.0/checkpoints.zip
+# !unzip ./checkpoints.zip  -d ./checkpoints
+# !wget -P ./parsing_model/checkpoint https://github.com/neuralchen/SimSwap/releases/download/1.0/79999_iter.pth
