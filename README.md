@@ -15,6 +15,12 @@ $ git clone https://github.com/ai-forever/sber-swap
 $ rm sber-swap/insightface_func && mv sber-swap/* ./
 ```
 
+We also use the StyleGAN3 github repository for generating synthetic images. It can similarly be cloned and extracted as follows: 
+
+```
+$ git clone https://github.com/NVlabs/stylegan3 && mv styleGAN3/* ./
+```
+
 
 # Training using Syntheic Images 
 
