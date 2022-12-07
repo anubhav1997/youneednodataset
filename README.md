@@ -51,7 +51,7 @@ $ python3 main.py --mode test --test_dataset {ffhq, celeba-hq, adfes, ff-neuralt
 If you use this package please consider citiing the corresponding paper. 
 
 ```
-   @INPROCEEDINGS{Colbois_IJCB_2021,
+   @INPROCEEDINGS{Jain_IJCB_2022,
             author = {Jain, Anubhav and Memon, Nasir and Togelius, Julian},
             title = {A Dataless FaceSwap Detection Approach Using Synthetic Images},
          booktitle = {International Joint Conference on Biometrics (IJCB 2022)},
