@@ -1,5 +1,6 @@
-# You don't need no dataset: A Dataless FaceSwap Detection Approach Using Synthetic Images
+# You don't need no dataset: Training deep classifiers on synthetic data
 
+### Upcoming: Database for Zero-Shot Racially Diverse Dataset Generation Using StyleGAN2
 
 This package contains the codebase for the paper titled "A Dataless FaceSwap Detection Approach Using Synthetic Images" that was accepted at IJCB 2022. The paper proposes a privacy preserving approach to detect faceswaps using of faces that don't exist. We make use of synthetic images generated using StyleGAN3 and show that it has various other benefits such as reduction in bias, learning more generalizable features and also generalizability to unseen faceswap models and datasets. 
 
