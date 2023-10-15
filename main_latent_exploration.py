@@ -1,29 +1,12 @@
 import cv2
 import numpy as np
-
-# import tensorflow as tf
 import os
-# tf.get_logger().setLevel('INFO')
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
-# tf.logging.set_verbosity(tf.logging.ERROR)
-# tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 import glob
 import argparse
 
 from deepface import DeepFace
-# from simswap import simswap_init, simswap
-# from sberswap import sberswap_init, sberswap
-# from stylegan3 import generate_images, generate_images_batch, parse_range, make_transform, parse_vec2
 from balanced_set import balanced_random, get_dataloader_oversampling_balanced, get_balanced_batch_latent_opt, train_latent_classifier, mutate, generate, mutate_z, generate_z, mutate_new, rejection_sampling
 import random
-# import warnings
-# import logging
-# # import logging
-# logging.disable(logging.CRITICAL)
-# logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger('mxnet').setLevel(logging.CRITICAL)
-#
-# warnings.filterwarnings('ignore')
 import sys
 
 parser = argparse.ArgumentParser()
