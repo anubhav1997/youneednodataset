@@ -7,6 +7,8 @@ This package contains modules to generate fair datasets from a biased StyleGAN2 
 
 # Zero-Shot Racially Balanced Dataset Generation Using StyleGAN2
 
+[Paper (arXiv)](https://arxiv.org/pdf/2305.07710)
+
 ## Setup 
 
 Our work heavily depends on the StyleGAN2 github repository. It can be cloned and extracted as follows. 
@@ -17,6 +19,8 @@ $ git clone https://github.com/NVlabs/stylegan3 && mv styleGAN3/* ./
 
 
 ## Fair Dataset Generation 
+
+
 
 To generate data via the proposed latent space exploration approach you will have to run the script independently for each racial groups you are interested in. The codebase currently supoorts 6 racial groups - Blacks, Indians, Asians, Hispanic, White, Middle Eastern - based on the Deepface ethnicity classifier. 
 
@@ -33,7 +37,13 @@ You can also generate samples using random rejection sampling.
 $ python3 main_latent_exploration.py --target_race <racial group> --mode rejection_sampling
 ```
 
+### Upcoming 
+Support for generating combinations of demographics. 
+
 # A Dataless FaceSwap Detection Approach Using Synthetic Images
+
+[Paper](https://ieeexplore.ieee.org/iel7/10007927/10007928/10007967.pdf)
+
 
 This package contains the codebase for the paper titled "A Dataless FaceSwap Detection Approach Using Synthetic Images" that was accepted at IJCB 2022. The paper proposes a privacy preserving approach to detect faceswaps using of faces that don't exist. We make use of synthetic images generated using StyleGAN3 and show that it has various other benefits such as reduction in bias, learning more generalizable features and also generalizability to unseen faceswap models and datasets. 
 
