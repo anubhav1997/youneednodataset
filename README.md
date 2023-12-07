@@ -40,6 +40,20 @@ $ python3 main_latent_exploration.py --target_race <racial group> --mode rejecti
 ### Upcoming 
 Support for generating combinations of demographics. 
 
+
+If you use this package please consider citiing the corresponding paper. 
+```
+@article{jain2023zero,
+  title={Zero-shot racially balanced dataset generation using an existing biased StyleGAN2},
+  author={Jain, Anubhav and Memon, Nasir and Togelius, Julian},
+  booktitle = {International Joint Conference on Biometrics (IJCB 2023)},
+  year={2023}
+}
+
+```
+
+
+
 # A Dataless FaceSwap Detection Approach Using Synthetic Images
 
 [Paper](https://ieeexplore.ieee.org/iel7/10007927/10007928/10007967.pdf)
