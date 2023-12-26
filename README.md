@@ -24,7 +24,15 @@ $ git clone https://github.com/NVlabs/stylegan3 && mv styleGAN3/* ./
 
 To generate data via the proposed latent space exploration approach you will have to run the script independently for each racial groups you are interested in. The codebase currently supoorts 6 racial groups - Blacks, Indians, Asians, Hispanic, White, Middle Eastern - based on the Deepface ethnicity classifier. 
 
-The mode parameter can be generate - for generating sampling in the W space or generate_z for generating samples in the Z space. The start and end iter help in controlling parallel runs of the script. The refer to the seed values. Like mentioned earlier the script supports the following racial groups - ```["asian", "white", "middle_eastern", 'black', 'latino', 'indian']```
+The mode parameter can be generate - for generating sampling in the W space or generate_z for generating samples in the Z space. The start and end iter help in controlling parallel runs of the script. They refer to the seed values. The script supports the following racial groups - ```["asian", "white", "middle_eastern", 'black', 'latino', 'indian']```
+
+You need for first generate synthetic identities using the proposed evolutionary algorithm. We saw a quality vs diversity trade-off between mutating in the Z and W+ latent spaces respectively - this should be kept in mind when deciding which one to prefer. In general, based on the results reported in the paper, we recommend the Z space which achieves similar results with higher quality images.  
+
+```
+$ python3 main_latent_exploration.py --target_race <racial group> --mode <mutate_z, mutate> --start_iter 0 --end_iter 1000 
+```
+
+Afterwhich, multiple samples per identity can be generated using the following command. 
 
 ```
 $ python3 main_latent_exploration.py --target_race <racial group> --mode <generate_z, generate> --start_iter 0 --end_iter 1000 
